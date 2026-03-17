@@ -1,108 +1,122 @@
-# smart-campus-energy-and-security-management
-Smart campus IoT system using MQTT, SQLite, and Streamlit to monitor temperature, energy usage, and security sensors.
-# Smart Campus Energy and Security Management
+# Smart Campus Energy and Security Management System
 
-## Overview
+## Software-Only MQTT Module
 
-This project implements an **IoT-based smart campus monitoring system** using MQTT communication.
-The system collects data from different sensors (environmental, energy, and security), stores the data in a database, and displays it on a dashboard.
+This project is the software-only part of an IoT system for smart campus monitoring, energy tracking, and HVAC control.
 
-The goal of the project is to demonstrate **system integration in IoT**, where multiple components communicate through MQTT and are managed from a central system.
+The system uses Python and the `paho-mqtt` library to simulate:
 
-Technologies Used
-**Python**
-**MQTT (Paho MQTT library)**
-**SQLite database**
-**Streamlit dashboard**
+- temperature sensor data
+- humidity sensor data
+- energy consumption data
 
-System Architecture
+The generated sensor values are published to an MQTT broker, and the HVAC system is automatically controlled according to the received temperature values.
 
-The system works as a pipeline:
+## Technologies Used
 
-Sensors (Publisher)
-→ MQTT Broker
-→ Subscriber (Data Collector)
-→ SQLite Database
-→ Streamlit Dashboard
+- Python
+- paho-mqtt
+- MQTT protocol
+- HiveMQ public broker
 
-The dashboard can also send **control commands** to devices through MQTT.
+## MQTT Broker Settings
 
-Project Components
+- Broker: `broker.hivemq.com`
+- Port: `1883`
 
-Publisher (`publisher.py`)
+## Main MQTT Topics
 
-Simulates sensor devices that send data to the MQTT broker.
+- `campus/room1/temperature`
+- `campus/room1/humidity`
+- `campus/room1/energy`
+- `campus/room1/hvac`
 
-Example data:
+## Extra Status Topics for Startup Dependency
 
-* Temperature values
-* Energy consumption information
+In this upgraded version, extra MQTT status topics are used so that the files depend on each other in startup order.
 
-### Subscriber (`subscriber.py`)
+- `campus/room1/status/hvac_subscriber`
+- `campus/room1/status/hvac_controller`
 
-Receives MQTT messages from sensors and:
+These topics are only used to manage readiness between the files.
 
-* Processes the data
-* Stores the data in an SQLite database
+## Project Files
 
-Database file:
-`sensor_data.db`
+### `temperature_publisher.py`
 
-### Dashboard (`dashboard.py`)
+- Simulates temperature values using random numbers
+- Waits until the HVAC controller is ready
+- Publishes temperature data every 5 seconds
+- Sends data to `campus/room1/temperature`
 
-A web dashboard built with **Streamlit** that:
+### `humidity_publisher.py`
 
-* Displays the latest sensor values
-* Shows all stored sensor data
-* Sends control commands to devices (HVAC, lights, security)
-Installation
+- Simulates humidity values using random numbers
+- Waits until the HVAC controller is ready
+- Publishes humidity data every 5 seconds
+- Sends data to `campus/room1/humidity`
 
-1. Install required libraries
+### `energy_publisher.py`
+
+- Simulates energy consumption values using random numbers
+- Waits until the HVAC controller is ready
+- Publishes energy data every 5 seconds
+- Sends data to `campus/room1/energy`
+
+### `hvac_controller.py`
+
+- Waits until the HVAC subscriber is ready
+- Subscribes to `campus/room1/temperature`
+- Reads incoming temperature values
+- Applies HVAC control logic:
+  - If temperature is below 20, publish `HEAT_ON`
+  - If temperature is above 26, publish `COOL_ON`
+  - Otherwise, publish `OFF`
+- Sends commands to `campus/room1/hvac`
+- Publishes its readiness status for the publishers
+
+### `hvac_subscriber.py`
+
+- Starts first in the system
+- Subscribes to `campus/room1/hvac`
+- Receives HVAC commands
+- Prints the received command
+- Displays:
+  - `Heating system ON`
+  - `Cooling system ON`
+  - `HVAC system OFF`
+- Publishes its readiness status for the controller
+
+## Startup Dependency Logic
+
+This upgraded version is designed so that the files depend on each other in a logical startup sequence.
+
+1. `hvac_subscriber.py` starts first and publishes a `READY` message.
+2. `hvac_controller.py` waits for the subscriber `READY` message.
+3. After the controller becomes ready, it publishes its own `READY` message.
+4. `temperature_publisher.py`, `humidity_publisher.py`, and `energy_publisher.py` wait for the controller `READY` message.
+5. After that, the publishers begin sending sensor data.
+
+This makes the order meaningful and easier to explain during project presentation.
+
+## System Workflow
+
+1. The HVAC subscriber starts and announces that it is ready.
+2. The HVAC controller starts after the subscriber is ready.
+3. The controller waits for temperature values.
+4. The temperature publisher starts after the controller is ready.
+5. The humidity publisher and energy publisher also start after the controller is ready.
+6. Temperature values are checked by the HVAC controller.
+7. The HVAC controller publishes `HEAT_ON`, `COOL_ON`, or `OFF`.
+8. The HVAC subscriber receives the command and prints the HVAC state.
+
+## Data Flow
+
+`temperature publisher / humidity publisher / energy publisher -> MQTT broker -> HVAC controller / HVAC subscriber`
+
+## Installation
+
+Install the required library:
 
 ```bash
-python3 -m pip install paho-mqtt streamlit pandas
-```
-
-2. Run the subscriber
-
-```bash
-python3 subscriber.py
-```
-
-3. Run the publisher
-
-```bash
-python3 publisher.py
-```
-
-4. Start the dashboard
-
-```bash
-python3 -m streamlit run dashboard.py
-```
-
-The dashboard will open automatically in your browser.
-
-Example MQTT Topics
-
-| Topic            | Description             |
-| ---------------- | ----------------------- |
-| home/temperature | Temperature sensor data |
-| home/humidity    | Humidity sensor data    |
-| home/energy      | Energy usage data       |
-| home/security    | Security alerts         |
-| home/hvac        | HVAC control commands   |
-| home/light       | Light control commands  |
-
-Features
-
-* MQTT communication between devices
-* Data storage using SQLite
-* Real-time dashboard visualization
-* Device control via MQTT commands
-
-Author
-
-Sagi Alyonov**
-
-University IoT System Integration Project
+pip install paho-mqtt
