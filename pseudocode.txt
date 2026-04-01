@@ -1,0 +1,190 @@
+# pseudocode.txt
+# Pseudocode for Smart Campus Security System
+# Author: Kamal
+# Project: Smart Campus Energy and Security Management (KZ4005CMD)
+# Date: April 2026
+
+
+# ============================================================
+#   PSEUDOCODE A - SECURITY PUBLISHER (3 client-broker pairs)
+# ============================================================
+
+BEGIN SecurityPublisher
+
+    CREATE AlertSystem object
+    CREATE SecurityDatabase object (creates tables)
+
+    CREATE motion_client  (Pair 1) with id "kamal_motion_publisher"
+    CREATE door_client    (Pair 2) with id "kamal_door_publisher"
+    CREATE cctv_client    (Pair 3) with id "kamal_cctv_publisher"
+
+    CONNECT all 3 clients to broker.hivemq.com port 1883
+    START network loop for each client
+
+    CREATE MotionSensor objects (PIR-Corridor-A, PIR-Lab-B)
+    CREATE DoorWindowSensor objects (Door-Main-Entrance, Window-Lab-B)
+    CREATE CCTVCamera objects (CCTV-Entrance-North, CCTV-Lab-B)
+
+    WHILE system is running DO
+
+        // Pair 1: Motion publishing
+        FOR EACH motion_sensor DO
+            reading = motion_sensor.read()
+            motion_client PUBLISH reading to "smartcampus/security/motion/alert"
+            database.insert_reading(reading)
+
+            alert = alert_system.evaluate_motion(reading)
+            IF alert is not None THEN
+                motion_client PUBLISH alert to security log topic
+                database.insert_alert(alert)
+
+                IF alert severity is WARNING or CRITICAL THEN
+                    camera.start_recording("motion_alert")
+                    cctv_client PUBLISH camera status
+                END IF
+            END IF
+        END FOR
+
+        // Pair 2: Door/window publishing
+        FOR EACH door_window_sensor DO
+            reading = door_window_sensor.read()
+            door_client PUBLISH reading to "smartcampus/security/door_window/alert"
+            database.insert_reading(reading)
+
+            alert = alert_system.evaluate_door_window(reading)
+            IF alert is not None AND severity is not INFO THEN
+                door_client PUBLISH alert to security log topic
+                database.insert_alert(alert)
+
+                IF should trigger cctv THEN
+                    camera.start_recording("door_window_alert")
+                    cctv_client PUBLISH camera status
+                END IF
+            END IF
+        END FOR
+
+        // Pair 3: Camera status publishing
+        FOR EACH camera DO
+            status = camera.get_status()
+            IF recording time > max duration THEN
+                camera.stop_recording()
+            END IF
+            IF is recording THEN
+                cctv_client PUBLISH status
+            END IF
+        END FOR
+
+        WAIT 5 seconds
+
+    END WHILE
+
+    PRINT database summary
+    STOP all clients
+    DISCONNECT all clients
+
+END SecurityPublisher
+
+
+# ============================================================
+#   PSEUDOCODE B - ALERT EVALUATION (AlertSystem class)
+# ============================================================
+
+CLASS AlertSystem
+    alert_history = empty list
+
+    METHOD evaluate_motion(reading)
+        IF motion not detected THEN
+            RETURN None
+        END IF
+
+        IF after hours (22:00 - 06:00) THEN
+            severity = "CRITICAL"
+            message = "Motion after hours - possible intrusion"
+        ELSE
+            severity = "WARNING"
+            message = "Motion during normal hours"
+        END IF
+
+        CREATE alert dictionary
+        APPEND alert to alert_history
+        RETURN alert
+    END METHOD
+
+    METHOD evaluate_door_window(reading)
+        IF door/window is closed THEN
+            RETURN None
+        END IF
+
+        IF after hours THEN
+            severity = "CRITICAL"
+        ELSE IF open duration > 30 seconds THEN
+            severity = "WARNING"
+        ELSE
+            severity = "INFO"
+        END IF
+
+        CREATE alert dictionary
+        APPEND alert to alert_history
+        RETURN alert
+    END METHOD
+
+    METHOD should_trigger_cctv(alert)
+        IF alert is None THEN RETURN False
+        IF severity is WARNING or CRITICAL THEN RETURN True
+        RETURN False
+    END METHOD
+END CLASS
+
+
+# ============================================================
+#   PSEUDOCODE C - SECURITY SUBSCRIBER (Pair 4)
+# ============================================================
+
+BEGIN SecuritySubscriber
+
+    CREATE mqtt client (Pair 4) with id "kamal_security_subscriber"
+    CONNECT to broker.hivemq.com port 1883
+    SUBSCRIBE to "smartcampus/security/command"
+    START loop
+
+    WHEN message arrives DO
+        DECODE json payload to dictionary
+        READ action from dictionary
+
+        IF action is "arm_system" THEN
+            PRINT "System ARMED"
+            SEND acknowledgement
+
+        ELSE IF action is "disarm_system" THEN
+            STOP all camera recordings
+            PRINT "System DISARMED"
+            SEND acknowledgement
+
+        ELSE IF action is "start_recording" THEN
+            FIND camera by target name
+            camera.start_recording("manual_command")
+            SEND acknowledgement
+
+        ELSE IF action is "stop_recording" THEN
+            FIND camera by target name
+            camera.stop_recording()
+            SEND acknowledgement
+
+        ELSE IF action is "lock_door" THEN
+            FIND door sensor by target name
+            door_sensor.force_lock()
+            SEND acknowledgement
+
+        ELSE IF action is "status" THEN
+            PRINT system status
+            SEND acknowledgement
+
+        ELSE
+            SEND error "Unknown action"
+        END IF
+
+    END WHEN
+
+    WAIT for messages forever
+
+END SecuritySubscriber
