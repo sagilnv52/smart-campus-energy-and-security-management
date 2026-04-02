@@ -1,0 +1,15 @@
+pip install paho-mqtt
+
+# Open 4 separate terminals and run one file in each:
+
+# Terminal 1 (start first):
+python cctv_subscriber.py
+
+# Terminal 2:
+python alert_controller.py
+
+# Terminal 3:
+python motion_publisher.py
+
+# Terminal 4:
+python door_publisher.py
