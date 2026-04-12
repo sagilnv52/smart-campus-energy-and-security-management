@@ -1,0 +1,24 @@
+Smart Campus MQTT - run order
+
+Option 1: Run the whole integrated system from one terminal
+1. python3 smart_campus_mqtt.py --role all
+If broker.hivemq.com is not reachable, this command automatically runs a short offline demo.
+
+Offline demo only (works without internet)
+1. python3 smart_campus_mqtt.py --role demo
+
+Option 2: Run modules separately in different terminals
+1. python3 smart_campus_mqtt.py --role subscriber
+2. python3 smart_campus_mqtt.py --role controller
+3. python3 smart_campus_mqtt.py --role environment-publisher
+4. python3 smart_campus_mqtt.py --role energy-publisher
+5. python3 smart_campus_mqtt.py --role security-publisher
+
+Dashboard
+1. streamlit run smart_campus_mqtt.py -- --role dashboard
+
+Notes
+- Install dependencies first if needed:
+  pip install paho-mqtt streamlit pandas
+- The system uses the public MQTT broker broker.hivemq.com on port 1883.
+- The SQLite database sensor_data.db is created automatically after the subscriber receives data.
